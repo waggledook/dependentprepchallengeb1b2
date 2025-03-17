@@ -213,13 +213,14 @@ class DependentPrepositionGame {
     }
 
     updateSentence() {
-        if (this.currentIndex < this.sentences.length) {
-            document.getElementById("sentence").textContent = this.sentences[this.currentIndex].sentence;
-            document.getElementById("answer").value = "";
-        } else {
-            this.endGame();
-        }
+    if (this.currentIndex < this.sentences.length) {
+        document.getElementById("sentence").textContent = this.sentences[this.currentIndex].sentence;
+        document.getElementById("answer").value = "";
+        document.getElementById("answer").focus(); // ensure the text bar is active
+    } else {
+        this.endGame();
     }
+}
 
     checkAnswer() {
     // Stop if the game is not active or we are not in review mode
@@ -231,79 +232,76 @@ class DependentPrepositionGame {
 
     // Retrieve the "preposition" field, which might be a string or an array
     let possibleAnswers = currentSet[this.currentIndex].preposition;
-
-    // Ensure "possibleAnswers" is an array
     if (!Array.isArray(possibleAnswers)) {
         possibleAnswers = [possibleAnswers];
     }
-    // Convert everything to lowercase so we can compare easily
     possibleAnswers = possibleAnswers.map(ans => ans.toLowerCase());
 
     // Check if the user's input matches any acceptable answer
     const isCorrect = possibleAnswers.includes(userInput);
 
+    // Disable the input so the user cannot press Enter repeatedly
+    input.disabled = true;
+
     if (isCorrect) {
-        // Correct answer
+        // Correct
         if (!this.reviewMode) {
             this.score += 5;
             document.getElementById("score").textContent = this.score;
         }
         input.classList.add("correct");
 
-        // Use a short delay so the user sees the green highlight briefly
         setTimeout(() => {
-            // Guard: if the game ended meanwhile, stop
-            if (!this.gameActive) return;
+    // Allow continuation in review mode even if the game is no longer active
+    if (!this.gameActive && !this.reviewMode) return;
 
-            input.classList.remove("correct");
-            document.getElementById("feedback").textContent = "";
+    input.classList.remove("correct");
+    document.getElementById("feedback").textContent = "";
+    input.disabled = false;           // Re-enable for next sentence
+    this.currentIndex++;
 
-            // Move to next item
-            this.currentIndex++;
-            if (this.reviewMode) {
-                this.showReviewSentence();
-            } else {
-                this.updateSentence();
-            }
-        }, 500);
+    if (this.reviewMode) {
+        this.showReviewSentence();
+    } else {
+        this.updateSentence();
+    }
+}, 500);
+
 
     } else {
-        // Incorrect answer
+        // Incorrect
         if (!this.reviewMode) {
             this.score -= 1;
             document.getElementById("score").textContent = this.score;
         }
         input.classList.add("incorrect");
 
-        // Show all correct answers in your feedback
         document.getElementById("feedback").textContent =
             `Incorrect: Correct answer is '${possibleAnswers.join(" / ")}'`;
 
         if (!this.reviewMode) {
-            // Save mistake for review mode
             this.wrongAnswers.push({
                 sentence: currentSet[this.currentIndex].sentence,
-                preposition: possibleAnswers,  
+                preposition: possibleAnswers,
                 userAnswer: userInput || "(no answer)"
             });
         }
 
-        // Delay so the user sees the red highlight and feedback
         setTimeout(() => {
-            // Guard: if the game ended meanwhile, stop
-            if (!this.gameActive) return;
+    // Allow continuation in review mode even if the game is no longer active
+    if (!this.gameActive && !this.reviewMode) return;
 
-            input.classList.remove("incorrect");
-            document.getElementById("feedback").textContent = "";
+    input.classList.remove("incorrect");
+    document.getElementById("feedback").textContent = "";
+    input.disabled = false;          // Re-enable for next sentence
+    this.currentIndex++;
 
-            // Move to next item
-            this.currentIndex++;
-            if (this.reviewMode) {
-                this.showReviewSentence();
-            } else {
-                this.updateSentence();
-            }
-        }, 1000);
+    if (this.reviewMode) {
+        this.showReviewSentence();
+    } else {
+        this.updateSentence();
+    }
+}, 1000);
     }
 }
 
@@ -343,8 +341,7 @@ class DependentPrepositionGame {
         if (newHighScore) {
             endMessage += `<div class="new-high">New High Score!</div>`;
         }
-        document.getElementById("sentence").innerHTML = endMessage;
-        // Hide the answer input and reset timer elements
+        document.getElementById("sentence").innerHTML = endMessage;        // Hide the answer input and reset timer elements
         document.getElementById("answer").style.display = "none";
         document.getElementById("timer").textContent = "";
         document.getElementById("timer-bar").style.width = "0%";
@@ -366,26 +363,42 @@ class DependentPrepositionGame {
     }
 
     startReview() {
-        if (this.wrongAnswers.length === 0) return;
-        this.reviewMode = true;
-        this.currentIndex = 0;
-        this.showReviewSentence();
-    }
+    if (this.wrongAnswers.length === 0) return;
+
+    this.reviewMode = true;
+    this.currentIndex = 0;
+
+    // Show the answer input again
+    const inputBox = document.getElementById("answer");
+    inputBox.style.display = "block";
+    inputBox.value = "";
+    inputBox.focus();
+
+    this.showReviewSentence();
+}
+
 
     showReviewSentence() {
-        if (this.currentIndex < this.wrongAnswers.length) {
-            const currentMistake = this.wrongAnswers[this.currentIndex];
-            document.getElementById("sentence").textContent = `${currentMistake.sentence.replace("__", "____")}`;
-            document.getElementById("answer").value = "";
-            document.getElementById("feedback").textContent = "";
-        } else {
-            document.getElementById("sentence").textContent = "Review complete!";
-            document.getElementById("answer").style.display = "none";
-            document.getElementById("feedback").textContent = "";
-            this.reviewMode = false;
-            this.currentIndex = 0;
-        }
+    if (this.currentIndex < this.wrongAnswers.length) {
+        // Force-remove leftover highlight classes each time we load a new sentence
+        const inputBox = document.getElementById("answer");
+        inputBox.classList.remove("correct", "incorrect");
+
+        // Display the next mistake
+        const currentMistake = this.wrongAnswers[this.currentIndex];
+        document.getElementById("sentence").textContent = 
+            currentMistake.sentence.replace("__", "____");
+        inputBox.value = "";
+        document.getElementById("feedback").textContent = "";
+        inputBox.focus(); // Make sure we can type immediately
+    } else {
+        document.getElementById("sentence").textContent = "Review complete!";
+        document.getElementById("answer").style.display = "none";
+        document.getElementById("feedback").textContent = "";
+        this.reviewMode = false;
+        this.currentIndex = 0;
     }
+}
 
     restartGame() {
         this.gameActive = false;
@@ -554,7 +567,7 @@ const sentences = [
     { sentence: "They smiled __ me.", preposition: "at" },
     { sentence: "I love spending money __ clothes.", preposition: "on" },
     { sentence: "They succeeded __ climbing the mountain.", preposition: "in" },
-    { sentence: "I talked __ the hotel manager about my room.", preposition: "to" },
+    { sentence: "I talked __ the hotel manager about my room.", preposition: ["to", "with"] },
     { sentence: "Are you waiting __ someone?", preposition: "for" },
     { sentence: "Don't worry __ it, it's not a problem.", preposition: "about" },
     { sentence: "She's angry __ her salary.", preposition: "about" },
