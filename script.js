@@ -18,7 +18,6 @@ class DependentPrepositionGame {
 
     initUI() {
         console.log("Game script is running!");
-
         document.body.innerHTML = `
             <style>
                 body {
@@ -33,11 +32,50 @@ class DependentPrepositionGame {
                     height: 100vh;
                     margin: 0;
                 }
+                /* Instructions Overlay */
+                #instructions-overlay {
+                    position: fixed;
+                    top: 0;
+                    left: 0;
+                    width: 100%;
+                    height: 100%;
+                    background: rgba(0,0,0,0.8);
+                    color: white;
+                    display: flex;
+                    flex-direction: column;
+                    align-items: center;
+                    justify-content: center;
+                    z-index: 1000;
+                }
+                #instructions-box {
+                    background: #333;
+                    padding: 20px;
+                    border-radius: 10px;
+                    max-width: 500px;
+                    text-align: left;
+                }
+                #instructions-box h2 {
+                    margin-top: 0;
+                }
+                #close-instructions {
+                    margin-top: 15px;
+                    padding: 5px 10px;
+                    background: #28a745;
+                    border: none;
+                    border-radius: 5px;
+                    color: white;
+                    cursor: pointer;
+                    transition: 0.3s;
+                }
+                #close-instructions:hover {
+                    opacity: 0.8;
+                }
+                /* Game container */
                 #game-container {
                     background: rgba(0, 0, 0, 0.8);
                     padding: 20px;
                     border-radius: 10px;
-                    box-shadow: 0px 4px 10px rgba(0, 0, 0, 0.2);
+                    box-shadow: 0px 4px 10px rgba(0,0,0,0.2);
                     text-align: center;
                 }
                 p {
@@ -53,11 +91,11 @@ class DependentPrepositionGame {
                 }
                 input.correct {
                     border: 2px solid #00FF00;
-                    background-color: rgba(0, 255, 0, 0.2);
+                    background-color: rgba(0,255,0,0.2);
                 }
                 input.incorrect {
                     border: 2px solid #FF0000;
-                    background-color: rgba(255, 0, 0, 0.2);
+                    background-color: rgba(255,0,0,0.2);
                 }
                 button {
                     padding: 10px 20px;
@@ -91,7 +129,32 @@ class DependentPrepositionGame {
                     background: red;
                     transition: width 1s linear;
                 }
+                /* End-game text styles */
+                .game-over {
+                    font-size: 24px;
+                    color: #FF4500;
+                    font-weight: bold;
+                    margin-bottom: 10px;
+                }
+                .new-high {
+                    font-size: 20px;
+                    color: #FFD700;
+                    font-weight: bold;
+                }
             </style>
+            <!-- Instructions Overlay -->
+            <div id="instructions-overlay">
+                <div id="instructions-box">
+                    <h2>How to Play</h2>
+                    <p>Welcome to the Dependent Preposition Challenge!</p>
+                    <p>Fill in the blank with the correct dependent preposition.</p>
+                    <p>For each correct answer you earn 5 points; for each incorrect answer, 1 point is deducted.</p>
+                    <p>You have 60 seconds to complete the challenge.</p>
+                    <p>Good luck!</p>
+                    <button id="close-instructions">Got It!</button>
+                </div>
+            </div>
+            <!-- Game Container -->
             <div id="game-container">
                 <h1>Dependent Preposition Challenge</h1>
                 <div id="timer-bar"></div>
@@ -100,18 +163,24 @@ class DependentPrepositionGame {
                 <input type="text" id="answer" autofocus>
                 <p id="feedback"></p>
                 <p>Score: <span id="score">0</span></p>
+                <p>Best Score: <span id="bestScore">0</span></p>
                 <button id="start">Start Game</button>
                 <button id="restart">Restart</button>
                 <button id="review">Review Mistakes</button>
-                <button id="downloadReport" style="display:none;">Download Report</button>  <!-- ✅ New button -->
-
+                <button id="downloadReport" style="display:none;">Download Report</button>
             </div>
         `;
+
+        // Dismiss instructions overlay
+        document.getElementById("close-instructions").addEventListener("click", () => {
+            document.getElementById("instructions-overlay").style.display = "none";
+        });
 
         document.getElementById("start").addEventListener("click", () => this.startGame());
         document.getElementById("restart").addEventListener("click", () => this.restartGame());
         document.getElementById("review").addEventListener("click", () => this.startReview());
         this.setupInputListener();
+        this.updateBestScoreDisplay();
     }
 
     setupInputListener() {
@@ -152,63 +221,91 @@ class DependentPrepositionGame {
         }
     }
 
-        checkAnswer() {
+    checkAnswer() {
+    // Stop if the game is not active or we are not in review mode
     if (!this.gameActive && !this.reviewMode) return;
 
     const input = document.getElementById("answer");
     const userInput = input.value.trim().toLowerCase();
     const currentSet = this.reviewMode ? this.wrongAnswers : this.sentences;
-    const correctAnswer = currentSet[this.currentIndex].preposition;
 
-    if (userInput === correctAnswer) {
-    if (!this.reviewMode) {
-        this.score += 5;  // ✅ Increase score for correct answer
-        document.getElementById("score").textContent = this.score;  // ✅ Update score display
+    // Retrieve the "preposition" field, which might be a string or an array
+    let possibleAnswers = currentSet[this.currentIndex].preposition;
+
+    // Ensure "possibleAnswers" is an array
+    if (!Array.isArray(possibleAnswers)) {
+        possibleAnswers = [possibleAnswers];
     }
-    input.classList.add("correct");
-    
-} else {
-    if (!this.reviewMode) {
-        this.score -= 1;  // ✅ Deduct score for incorrect answer
-        document.getElementById("score").textContent = this.score;  // ✅ Update score display
-    }
-    input.classList.add("incorrect");
-    document.getElementById("feedback").textContent = `Incorrect: Correct answer is '${correctAnswer}'`;
+    // Convert everything to lowercase so we can compare easily
+    possibleAnswers = possibleAnswers.map(ans => ans.toLowerCase());
 
-    // Store incorrect answers for review mode
-if (!this.reviewMode) {
-    this.wrongAnswers.push({
-        sentence: currentSet[this.currentIndex].sentence,
-        preposition: currentSet[this.currentIndex].preposition,
-        userAnswer: userInput || "(no answer)"  // ✅ Save what the user typed
-    });
-}
+    // Check if the user's input matches any acceptable answer
+    const isCorrect = possibleAnswers.includes(userInput);
 
-}
-
-
-
-        if (this.reviewMode) {
-        setTimeout(() => {
-            input.classList.remove("correct", "incorrect");
-            this.currentIndex++;  // ✅ Move to the next mistake in review mode
-            this.showReviewSentence();
-        }, 1000);
-    } else {
-        this.currentIndex++;  // ✅ Move to next sentence in normal game mode
-        if (userInput !== correctAnswer) {  // ✅ Keep delay for incorrect answers
-            setTimeout(() => {
-                input.classList.remove("correct", "incorrect");
-                this.updateSentence();
-            }, 1000);
-        } else {
-            input.classList.remove("correct", "incorrect");
-            this.updateSentence();  // ✅ No delay for correct answers
+    if (isCorrect) {
+        // Correct answer
+        if (!this.reviewMode) {
+            this.score += 5;
+            document.getElementById("score").textContent = this.score;
         }
+        input.classList.add("correct");
+
+        // Use a short delay so the user sees the green highlight briefly
+        setTimeout(() => {
+            // Guard: if the game ended meanwhile, stop
+            if (!this.gameActive) return;
+
+            input.classList.remove("correct");
+            document.getElementById("feedback").textContent = "";
+
+            // Move to next item
+            this.currentIndex++;
+            if (this.reviewMode) {
+                this.showReviewSentence();
+            } else {
+                this.updateSentence();
+            }
+        }, 500);
+
+    } else {
+        // Incorrect answer
+        if (!this.reviewMode) {
+            this.score -= 1;
+            document.getElementById("score").textContent = this.score;
+        }
+        input.classList.add("incorrect");
+
+        // Show all correct answers in your feedback
+        document.getElementById("feedback").textContent =
+            `Incorrect: Correct answer is '${possibleAnswers.join(" / ")}'`;
+
+        if (!this.reviewMode) {
+            // Save mistake for review mode
+            this.wrongAnswers.push({
+                sentence: currentSet[this.currentIndex].sentence,
+                preposition: possibleAnswers,  
+                userAnswer: userInput || "(no answer)"
+            });
+        }
+
+        // Delay so the user sees the red highlight and feedback
+        setTimeout(() => {
+            // Guard: if the game ended meanwhile, stop
+            if (!this.gameActive) return;
+
+            input.classList.remove("incorrect");
+            document.getElementById("feedback").textContent = "";
+
+            // Move to next item
+            this.currentIndex++;
+            if (this.reviewMode) {
+                this.showReviewSentence();
+            } else {
+                this.updateSentence();
+            }
+        }, 1000);
     }
-
-
-    } // ✅ **THIS BRACKET WAS MISSING**
+}
 
 
 
@@ -226,30 +323,47 @@ if (!this.reviewMode) {
     }
 
     endGame() {
-    this.gameActive = false;
-    clearInterval(this.interval);
-    console.log("✅ EndGame Triggered!");  // ✅ Debugging Log
-    console.log("❗Wrong Answers Count:", this.wrongAnswers.length);  // ✅ Check stored mistakes
+        this.gameActive = false;
+        clearInterval(this.interval);
+        console.log("EndGame Triggered!");
+        console.log("Wrong Answers Count:", this.wrongAnswers.length);
 
-    document.getElementById("review").style.display = this.wrongAnswers.length > 0 ? "block" : "none";
+        // Check and update best score using localStorage
+        let storedBest = localStorage.getItem("bestScoreDependent") || 0;
+        let newHighScore = false;
+        if (this.score > storedBest) {
+            localStorage.setItem("bestScoreDependent", this.score);
+            newHighScore = true;
+        }
+        this.updateBestScoreDisplay();
 
-    const reportButton = document.getElementById("downloadReport");
-    if (!reportButton) {
-        console.error("🚨 ERROR: Download Report button is missing!");
-        return;
+        // Build game over message
+        let endMessage = `<div class="game-over">Time's Up!</div>
+                          <div>Your score: ${this.score}</div>`;
+        if (newHighScore) {
+            endMessage += `<div class="new-high">New High Score!</div>`;
+        }
+        document.getElementById("sentence").innerHTML = endMessage;
+        // Hide the answer input and reset timer elements
+        document.getElementById("answer").style.display = "none";
+        document.getElementById("timer").textContent = "";
+        document.getElementById("timer-bar").style.width = "0%";
+        // Show review and report buttons if applicable
+        document.getElementById("review").style.display = this.wrongAnswers.length > 0 ? "block" : "none";
+        const reportButton = document.getElementById("downloadReport");
+        if (reportButton) {
+            reportButton.style.display = "block";
+            if (!reportButton.dataset.listenerAdded) {
+                reportButton.addEventListener("click", () => this.generateReport());
+                reportButton.dataset.listenerAdded = "true";
+            }
+        }
     }
 
-    console.log("✅ Showing Report Button");
-    reportButton.style.display = "block";
-
-    // ✅ Ensure the event listener is only added once
-    if (!reportButton.dataset.listenerAdded) {
-        reportButton.addEventListener("click", () => this.generateReport());
-        reportButton.dataset.listenerAdded = "true";  // Prevents duplicate listeners
-        console.log("✅ Report Button Click Event Added!");
+    updateBestScoreDisplay() {
+        let storedBest = localStorage.getItem("bestScoreDependent") || 0;
+        document.getElementById("bestScore").textContent = storedBest;
     }
-}
-
 
     startReview() {
         if (this.wrongAnswers.length === 0) return;
@@ -259,50 +373,45 @@ if (!this.reviewMode) {
     }
 
     showReviewSentence() {
-    if (this.currentIndex < this.wrongAnswers.length) {
-        const currentMistake = this.wrongAnswers[this.currentIndex];
-        document.getElementById("sentence").textContent = `${currentMistake.sentence.replace("__", "____")}`;
-        document.getElementById("answer").value = "";
-        document.getElementById("feedback").textContent = ""; // Clear feedback
-    } else {
-        document.getElementById("sentence").textContent = "Review complete!";
-        document.getElementById("answer").style.display = "none";
-        document.getElementById("feedback").textContent = "";
-        this.reviewMode = false; // Reset review mode
-        this.currentIndex = 0; // Reset index
+        if (this.currentIndex < this.wrongAnswers.length) {
+            const currentMistake = this.wrongAnswers[this.currentIndex];
+            document.getElementById("sentence").textContent = `${currentMistake.sentence.replace("__", "____")}`;
+            document.getElementById("answer").value = "";
+            document.getElementById("feedback").textContent = "";
+        } else {
+            document.getElementById("sentence").textContent = "Review complete!";
+            document.getElementById("answer").style.display = "none";
+            document.getElementById("feedback").textContent = "";
+            this.reviewMode = false;
+            this.currentIndex = 0;
+        }
     }
-}
-   restartGame() {
-    this.gameActive = false;  // Stop any active game
-    this.reviewMode = false;  // Reset review mode
-    clearInterval(this.interval);  // Stop the timer
 
-    // Reset key game variables
-    this.currentIndex = 0;
-    this.score = 0;
-    this.timer = 60;
-    this.wrongAnswers = [];
-    this.sentences = this.shuffle([...this.originalSentences]);
-
-    // Reset UI elements
-    document.getElementById("score").textContent = this.score;
-    document.getElementById("feedback").textContent = "";
-    document.getElementById("sentence").textContent = "";
-    document.getElementById("answer").value = "";
-    const inputBox = document.getElementById("answer");
-    inputBox.style.display = "block";
-    inputBox.style.width = "80%";  // ✅ Ensures it stretches properly
-    inputBox.style.margin = "10px auto";  // ✅ Centers it inside its container
-    inputBox.style.textAlign = "center";  // ✅ Centers text inside the box
-    inputBox.focus();
-    document.getElementById("timer").textContent = "Time left: 60s";
-    document.getElementById("timer-bar").style.width = "100%";
-
-    // Hide review button & show start button
-    document.getElementById("review").style.display = "none";
-    document.getElementById("restart").style.display = "none";
-    document.getElementById("start").style.display = "block";
-}
+    restartGame() {
+        this.gameActive = false;
+        this.reviewMode = false;
+        clearInterval(this.interval);
+        this.currentIndex = 0;
+        this.score = 0;
+        this.timer = 60;
+        this.wrongAnswers = [];
+        this.sentences = this.shuffle([...this.originalSentences]);
+        document.getElementById("score").textContent = this.score;
+        document.getElementById("feedback").textContent = "";
+        document.getElementById("sentence").textContent = "";
+        document.getElementById("answer").value = "";
+        const inputBox = document.getElementById("answer");
+        inputBox.style.display = "block";
+        inputBox.style.width = "80%";
+        inputBox.style.margin = "10px auto";
+        inputBox.style.textAlign = "center";
+        inputBox.focus();
+        document.getElementById("timer").textContent = "Time left: 60s";
+        document.getElementById("timer-bar").style.width = "100%";
+        document.getElementById("review").style.display = "none";
+        document.getElementById("restart").style.display = "none";
+        document.getElementById("start").style.display = "block";
+    }
 
     generateReport() {
     if (this.wrongAnswers.length === 0) {
@@ -313,21 +422,22 @@ if (!this.reviewMode) {
     let reportText = "Dependent Preposition Game - Mistakes Report\n\n";
 
     this.wrongAnswers.forEach(mistake => {
+        // "mistake.preposition" might now be an array
+        const allCorrect = Array.isArray(mistake.preposition)
+            ? mistake.preposition.join(" / ")
+            : mistake.preposition;
+
         reportText += `You wrote: "${mistake.sentence.replace("__", mistake.userAnswer.toUpperCase())}"\n`;
-        reportText += `The correct answer is: "${mistake.sentence.replace("__", mistake.preposition.toUpperCase())}"\n\n`;
+        reportText += `The correct answer(s) is/are: "${mistake.sentence.replace("__", allCorrect.toUpperCase())}"\n\n`;
     });
-
-    // Create a Blob and generate a download link
-    const blob = new Blob([reportText], { type: "text/plain" });
-    const link = document.createElement("a");
-    link.href = URL.createObjectURL(blob);
-    link.download = "game_report.txt";
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-}
-
-
+        const blob = new Blob([reportText], { type: "text/plain" });
+        const link = document.createElement("a");
+        link.href = URL.createObjectURL(blob);
+        link.download = "game_report.txt";
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+    }
 }
 
 const sentences = [
@@ -381,7 +491,7 @@ const sentences = [
     { sentence: "She's going to specialize __ paediatrics.", preposition: "in" },
     { sentence: "I hope you succeed __ finding a job.", preposition: "in" },
     { sentence: "He's suffering __ a broken heart.", preposition: "from" },
-    { sentence: "I'm thinking __ going to Ireland this summer.", preposition: "of/about" },
+    { sentence: "I'm thinking __ going to Ireland this summer.", preposition: ["of", "about"] },
     { sentence: "What do you think __ my new shoes?", preposition: "of" },
     { sentence: "What are you thinking __?", preposition: "about" },
     { sentence: "Her book has been translated __ 20 languages.", preposition: "into" },
