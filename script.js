@@ -456,7 +456,7 @@ class DependentPrepositionGame {
 const sentences = [
     { sentence: "She's addicted __ coffee.", preposition: "to" },
     { sentence: "I'm afraid/frightened __ flying.", preposition: "of" },
-    { sentence: "He's very angry with his son __ the party.", preposition: "with" },
+    { sentence: "He's very angry with his son __ the party.", preposition: "about" },
     { sentence: "We're bored __ doing this.", preposition: "with" },
     { sentence: "I'm fed up __ you complaining all the time.", preposition: "with" },
     { sentence: "The square was full __ tourists.", preposition: "of" },
