@@ -189,6 +189,11 @@ button:active {
                     color: #FFD700;
                     font-weight: bold;
                 }
+                .highlight-correct {
+                color: #00FF00;
+                font-weight: bold;
+                font-size: 1.2em;
+                }
             </style>
             <!-- Instructions Overlay -->
             <div id="instructions-overlay">
@@ -212,7 +217,15 @@ button:active {
                 <div id="timer-bar"></div>
                 <p id="timer">Time left: 60s</p>
                 <p id="sentence"></p>
-                <input type="text" id="answer" autofocus>
+                <input
+  type="text"
+  id="answer"
+  autofocus
+  autocomplete="off"
+  autocorrect="off"
+  autocapitalize="none"
+  spellcheck="false"
+/>
                 <p id="feedback"></p>
                 <p>Score: <span id="score">0</span></p>
                 <p>Best Score: <span id="bestScore">0</span></p>
@@ -332,8 +345,9 @@ checkAnswer() {
         document.getElementById("score").textContent = this.score;
       }
       input.classList.add("incorrect");
-      document.getElementById("feedback").textContent =
-        `Incorrect: Correct answer is '${possibleAnswers.join(" / ")}'`;
+      const corr = possibleAnswers.join(" / ");
+      document.getElementById("feedback").innerHTML =
+        `Incorrect: Correct answer is <span class="highlight-correct">${corr}</span>`;
   
       if (!this.reviewMode) {
         this.wrongAnswers.push({
