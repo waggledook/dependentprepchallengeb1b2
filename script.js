@@ -1,3 +1,15 @@
+// load jsPDF + AutoTable
+function loadScript(url, cb) {
+    const s = document.createElement("script");
+    s.src = url; s.onload = cb;
+    document.head.appendChild(s);
+  }
+  loadScript("https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js", () => {
+    loadScript("https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.23/jspdf.plugin.autotable.min.js", () => {
+      console.log("PDF libs ready");
+    });
+  });
+
 class DependentPrepositionGame {
     constructor(sentences) {
         this.originalSentences = sentences;
@@ -9,6 +21,8 @@ class DependentPrepositionGame {
         this.interval = null;
         this.gameActive = false;
         this.reviewMode = false;
+        this.processingAnswer = false;
+        this.answeredSentences = [];
         this.initUI();
     }
 
@@ -97,32 +111,66 @@ class DependentPrepositionGame {
                     border: 2px solid #FF0000;
                     background-color: rgba(255,0,0,0.2);
                 }
-                button {
-                    padding: 10px 20px;
-                    font-size: 18px;
-                    margin-top: 10px;
-                    border: none;
-                    border-radius: 5px;
-                    cursor: pointer;
-                    transition: 0.3s;
-                }
-                button:hover {
-                    opacity: 0.8;
-                }
-                #start {
-                    background: #28a745;
-                    color: white;
-                }
-                #restart {
-                    background: #007bff;
-                    color: white;
-                    display: none;
-                }
-                #review {
-                    background: #ffc107;
-                    color: black;
-                    display: none;
-                }
+                /* Base button look */
+button {
+  padding: 10px 20px;
+  font-size: 18px;
+  margin-top: 10px;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+  background: #eee;
+  color: #333;
+}
+button:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 8px rgba(0,0,0,0.15);
+}
+button:active {
+  transform: translateY(1px);
+  box-shadow: 0 3px 4px rgba(0,0,0,0.1);
+}
+
+/* Start Game */
+#start {
+  background: linear-gradient(135deg, #28a745, #218838);
+  color: white;
+}
+#start:hover {
+  background: linear-gradient(135deg, #218838, #28a745);
+}
+
+/* Restart */
+#restart {
+  background: linear-gradient(135deg, #007bff, #0069d9);
+  color: white;
+  display: none;
+}
+#restart:hover {
+  background: linear-gradient(135deg, #0069d9, #007bff);
+}
+
+/* Review */
+#review {
+  background: linear-gradient(135deg, #ffc107, #e0a800);
+  color: #212529;
+  display: none;
+}
+#review:hover {
+  background: linear-gradient(135deg, #e0a800, #ffc107);
+}
+
+/* Download Report */
+#downloadReport {
+  background: linear-gradient(135deg, #17a2b8, #117a8b);
+  color: white;
+  display: none;
+}
+#downloadReport:hover {
+  background: linear-gradient(135deg, #117a8b, #17a2b8);
+}
                 #timer-bar {
                     width: 100%;
                     height: 10px;
@@ -156,7 +204,11 @@ class DependentPrepositionGame {
             </div>
             <!-- Game Container -->
             <div id="game-container">
-                <h1>Dependent Preposition Challenge</h1>
+                <img 
+  src="images/dependent-title.png" 
+  alt="Dependent Preposition Challenge" 
+  style="width:250px; height:auto; margin-bottom:20px;"
+>
                 <div id="timer-bar"></div>
                 <p id="timer">Time left: 60s</p>
                 <p id="sentence"></p>
@@ -179,17 +231,23 @@ class DependentPrepositionGame {
         document.getElementById("start").addEventListener("click", () => this.startGame());
         document.getElementById("restart").addEventListener("click", () => this.restartGame());
         document.getElementById("review").addEventListener("click", () => this.startReview());
+        // ─── wire up Download Report ───
+const dl = document.getElementById("downloadReport");
+dl.style.display = "block";                // make it visible
+dl.addEventListener("click", () => this.generateReport());
         this.setupInputListener();
         this.updateBestScoreDisplay();
     }
 
     setupInputListener() {
-        document.getElementById("answer").addEventListener("keyup", (event) => {
-            if (event.key === "Enter") {
-                this.checkAnswer();
-            }
+        const input = document.getElementById("answer");
+        input.addEventListener("keydown", (e) => {
+          if (e.key === "Enter") {
+            e.preventDefault();      // stop the native “submit” blur
+            this.checkAnswer();
+          }
         });
-    }
+      }
 
     startGame() {
         this.gameActive = true;
@@ -222,91 +280,82 @@ class DependentPrepositionGame {
     }
 }
 
-    checkAnswer() {
-    // Stop if the game is not active or we are not in review mode
-    if (!this.gameActive && !this.reviewMode) return;
-
-    const input = document.getElementById("answer");
-    const userInput = input.value.trim().toLowerCase();
+checkAnswer() {
+    // prevent double‑submits & respect game/review states
+    if (this.processingAnswer || (!this.gameActive && !this.reviewMode)) return;
+    this.processingAnswer = true;
+  
+    const input      = document.getElementById("answer");
+    const userInput  = input.value.trim().toLowerCase();
     const currentSet = this.reviewMode ? this.wrongAnswers : this.sentences;
-
-    // Retrieve the "preposition" field, which might be a string or an array
+  
+    // normalize possible answers to array of lowercase
     let possibleAnswers = currentSet[this.currentIndex].preposition;
-    if (!Array.isArray(possibleAnswers)) {
-        possibleAnswers = [possibleAnswers];
-    }
-    possibleAnswers = possibleAnswers.map(ans => ans.toLowerCase());
-
-    // Check if the user's input matches any acceptable answer
+    if (!Array.isArray(possibleAnswers)) possibleAnswers = [possibleAnswers];
+    possibleAnswers = possibleAnswers.map(a => a.toLowerCase());
+  
     const isCorrect = possibleAnswers.includes(userInput);
-
-    // Disable the input so the user cannot press Enter repeatedly
-    input.disabled = true;
-
+  
+    // ── NEW: record every non‑review answer for the PDF report ──
+    if (!this.reviewMode) {
+      this.answeredSentences.push({
+        sentence:       currentSet[this.currentIndex].sentence,
+        userAnswer:     userInput || "(no answer)",
+        correctAnswers: possibleAnswers,
+        result:         isCorrect ? "Correct" : "Incorrect"
+      });
+    }
+  
     if (isCorrect) {
-        // Correct
-        if (!this.reviewMode) {
-            this.score += 5;
-            document.getElementById("score").textContent = this.score;
-        }
-        input.classList.add("correct");
-
-        setTimeout(() => {
-    // Allow continuation in review mode even if the game is no longer active
-    if (!this.gameActive && !this.reviewMode) return;
-
-    input.classList.remove("correct");
-    document.getElementById("feedback").textContent = "";
-    input.disabled = false;           // Re-enable for next sentence
-    this.currentIndex++;
-
-    if (this.reviewMode) {
-        this.showReviewSentence();
+      // correct path
+      if (!this.reviewMode) {
+        this.score += 5;
+        document.getElementById("score").textContent = this.score;
+      }
+      input.classList.add("correct");
+  
+      setTimeout(() => {
+        if (!this.gameActive && !this.reviewMode) return;
+        input.classList.remove("correct");
+        document.getElementById("feedback").textContent = "";
+        this.currentIndex++;
+        this.processingAnswer = false;
+        if (this.reviewMode) this.showReviewSentence();
+        else this.updateSentence();
+        input.focus();
+      }, 500);
+  
     } else {
-        this.updateSentence();
+      // incorrect path
+      if (!this.reviewMode) {
+        this.score -= 1;
+        document.getElementById("score").textContent = this.score;
+      }
+      input.classList.add("incorrect");
+      document.getElementById("feedback").textContent =
+        `Incorrect: Correct answer is '${possibleAnswers.join(" / ")}'`;
+  
+      if (!this.reviewMode) {
+        this.wrongAnswers.push({
+          sentence:    currentSet[this.currentIndex].sentence,
+          preposition: possibleAnswers,
+          userAnswer:  userInput || "(no answer)"
+        });
+      }
+  
+      setTimeout(() => {
+        if (!this.gameActive && !this.reviewMode) return;
+        input.classList.remove("incorrect");
+        document.getElementById("feedback").textContent = "";
+        this.currentIndex++;
+        this.processingAnswer = false;
+        if (this.reviewMode) this.showReviewSentence();
+        else this.updateSentence();
+        input.focus();
+      }, 1000);
     }
-}, 500);
-
-
-    } else {
-        // Incorrect
-        if (!this.reviewMode) {
-            this.score -= 1;
-            document.getElementById("score").textContent = this.score;
-        }
-        input.classList.add("incorrect");
-
-        document.getElementById("feedback").textContent =
-            `Incorrect: Correct answer is '${possibleAnswers.join(" / ")}'`;
-
-        if (!this.reviewMode) {
-            this.wrongAnswers.push({
-                sentence: currentSet[this.currentIndex].sentence,
-                preposition: possibleAnswers,
-                userAnswer: userInput || "(no answer)"
-            });
-        }
-
-        setTimeout(() => {
-    // Allow continuation in review mode even if the game is no longer active
-    if (!this.gameActive && !this.reviewMode) return;
-
-    input.classList.remove("incorrect");
-    document.getElementById("feedback").textContent = "";
-    input.disabled = false;          // Re-enable for next sentence
-    this.currentIndex++;
-
-    if (this.reviewMode) {
-        this.showReviewSentence();
-    } else {
-        this.updateSentence();
-    }
-}, 1000);
-    }
-}
-
-
-
+  }  
+  
     startTimer() {
         this.interval = setInterval(() => {
             if (this.timer > 0) {
@@ -325,37 +374,41 @@ class DependentPrepositionGame {
         clearInterval(this.interval);
         console.log("EndGame Triggered!");
         console.log("Wrong Answers Count:", this.wrongAnswers.length);
-
+      
         // Check and update best score using localStorage
         let storedBest = localStorage.getItem("bestScoreDependent") || 0;
         let newHighScore = false;
         if (this.score > storedBest) {
-            localStorage.setItem("bestScoreDependent", this.score);
-            newHighScore = true;
+          localStorage.setItem("bestScoreDependent", this.score);
+          newHighScore = true;
         }
         this.updateBestScoreDisplay();
-
+      
         // Build game over message
         let endMessage = `<div class="game-over">Time's Up!</div>
                           <div>Your score: ${this.score}</div>`;
         if (newHighScore) {
-            endMessage += `<div class="new-high">New High Score!</div>`;
+          endMessage += `<div class="new-high">New High Score!</div>`;
         }
-        document.getElementById("sentence").innerHTML = endMessage;        // Hide the answer input and reset timer elements
+        document.getElementById("sentence").innerHTML = endMessage;
+      
+        // Hide the answer input and reset timer elements
         document.getElementById("answer").style.display = "none";
         document.getElementById("timer").textContent = "";
         document.getElementById("timer-bar").style.width = "0%";
-        // Show review and report buttons if applicable
+      
+        // Show review button if there are wrong answers
         document.getElementById("review").style.display = this.wrongAnswers.length > 0 ? "block" : "none";
-        const reportButton = document.getElementById("downloadReport");
-        if (reportButton) {
-            reportButton.style.display = "block";
-            if (!reportButton.dataset.listenerAdded) {
-                reportButton.addEventListener("click", () => this.generateReport());
-                reportButton.dataset.listenerAdded = "true";
-            }
+      
+        // Show & hook up Download Report button
+        const dl = document.getElementById("downloadReport");
+        dl.style.display = "block";
+        if (!dl.dataset.listenerAdded) {
+          dl.addEventListener("click", () => this.generateReport());
+          dl.dataset.listenerAdded = "true";
         }
-    }
+      }
+      
 
     updateBestScoreDisplay() {
         let storedBest = localStorage.getItem("bestScoreDependent") || 0;
@@ -363,44 +416,53 @@ class DependentPrepositionGame {
     }
 
     startReview() {
-    if (this.wrongAnswers.length === 0) return;
-
-    this.reviewMode = true;
-    this.currentIndex = 0;
-
-    // Show the answer input again
-    const inputBox = document.getElementById("answer");
-    inputBox.style.display = "block";
-    inputBox.value = "";
-    inputBox.focus();
-
-    this.showReviewSentence();
-}
-
-
-    showReviewSentence() {
-    if (this.currentIndex < this.wrongAnswers.length) {
-        // Force-remove leftover highlight classes each time we load a new sentence
+        if (this.wrongAnswers.length === 0) return;
+      
+        // enter review mode
+        this.reviewMode        = true;
+        this.processingAnswer  = false;
+        this.currentIndex      = 0;
+      
+        // show & clear the input box
         const inputBox = document.getElementById("answer");
-        inputBox.classList.remove("correct", "incorrect");
+        inputBox.style.display             = "block";
+        inputBox.value                     = "";
+        document.getElementById("feedback").textContent = "";
+        inputBox.focus();
+      
+        this.showReviewSentence();
+      }
+      
 
-        // Display the next mistake
-        const currentMistake = this.wrongAnswers[this.currentIndex];
-        document.getElementById("sentence").textContent = 
-            currentMistake.sentence.replace("__", "____");
-        inputBox.value = "";
-        document.getElementById("feedback").textContent = "";
-        inputBox.focus(); // Make sure we can type immediately
-    } else {
-        document.getElementById("sentence").textContent = "Review complete!";
-        document.getElementById("answer").style.display = "none";
-        document.getElementById("feedback").textContent = "";
-        this.reviewMode = false;
-        this.currentIndex = 0;
-    }
-}
+
+      showReviewSentence() {
+        const inputBox = document.getElementById("answer");
+      
+        if (this.currentIndex < this.wrongAnswers.length) {
+          // keep the input visible
+          inputBox.style.display = "block";
+          inputBox.classList.remove("correct", "incorrect");
+      
+          // display current mistake
+          const m = this.wrongAnswers[this.currentIndex];
+          document.getElementById("sentence").textContent =
+            m.sentence.replace("__", "____");
+      
+          inputBox.value                     = "";
+          document.getElementById("feedback").textContent = "";
+          inputBox.focus();
+        } else {
+          // end of review
+          document.getElementById("sentence").textContent = "Review complete!";
+          inputBox.style.display         = "none";
+          document.getElementById("feedback").textContent = "";
+          this.reviewMode               = false;
+          this.currentIndex             = 0;
+        }
+      }
 
     restartGame() {
+        this.answeredSentences = [];
         this.gameActive = false;
         this.reviewMode = false;
         clearInterval(this.interval);
@@ -427,30 +489,53 @@ class DependentPrepositionGame {
     }
 
     generateReport() {
-    if (this.wrongAnswers.length === 0) {
-        alert("No mistakes were made. Great job!");
-        return;
-    }
-
-    let reportText = "Dependent Preposition Game - Mistakes Report\n\n";
-
-    this.wrongAnswers.forEach(mistake => {
-        // "mistake.preposition" might now be an array
-        const allCorrect = Array.isArray(mistake.preposition)
-            ? mistake.preposition.join(" / ")
-            : mistake.preposition;
-
-        reportText += `You wrote: "${mistake.sentence.replace("__", mistake.userAnswer.toUpperCase())}"\n`;
-        reportText += `The correct answer(s) is/are: "${mistake.sentence.replace("__", allCorrect.toUpperCase())}"\n\n`;
-    });
-        const blob = new Blob([reportText], { type: "text/plain" });
-        const link = document.createElement("a");
-        link.href = URL.createObjectURL(blob);
-        link.download = "game_report.txt";
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
-    }
+        // guard: nothing answered yet
+        if (this.answeredSentences.length === 0) {
+          alert("No answers to report!");
+          return;
+        }
+      
+        // jsPDF + AutoTable must be loaded first
+        const { jsPDF } = window.jspdf;
+        const doc = new jsPDF();
+        doc.setFontSize(16);
+        doc.text("Dependent Preposition Challenge Report", 14, 20);
+      
+        // build table rows from every answered sentence
+        const rows = this.answeredSentences.map((entry, i) => [
+          i + 1,
+          entry.sentence,
+          entry.userAnswer,
+          entry.correctAnswers.join(", "),
+          entry.result
+        ]);
+      
+        // render table with color‑coding
+        doc.autoTable({
+          startY: 30,
+          head: [["#", "Sentence", "Your Answer", "Correct Answer(s)", "Result"]],
+          body: rows,
+          headStyles: { fillColor: [41, 128, 185], textColor: 255 },
+          styles:    { overflow: "linebreak", cellPadding: 3, fontSize: 10 },
+          didParseCell: function(data) {
+            if (data.section === 'body') {
+              const result = data.row.raw[4];
+              // Your Answer column (index 2)
+              if (data.column.index === 2) {
+                data.cell.styles.textColor = result === 'Correct' ? [0, 128, 0] : [255, 0, 0];
+              }
+              // Result column (index 4)
+              if (data.column.index === 4) {
+                data.cell.styles.textColor = result === 'Correct' ? [0, 128, 0] : [255, 0, 0];
+                data.cell.styles.fontStyle = 'bold';
+              }
+            }
+          }
+        });
+      
+        // download PDF
+        doc.save("dependent_preposition_report.pdf");
+      }           
 }
 
 const sentences = [
